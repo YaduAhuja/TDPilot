@@ -1,0 +1,5 @@
+{
+  "slowLimit": 12000,
+  "fastLimit": 18000,
+  "tctlTemp": 80
+}

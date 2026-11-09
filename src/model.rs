@@ -1,7 +1,6 @@
-use std::error::Error;
+use crate::utils::camel_to_kebab;
 use serde::{Deserialize, Serialize};
 use serde_with::skip_serializing_none;
-use crate::utils::camel_to_kebab;
 
 /// RyzenAdj settings stored in a TDPilot profile.
 ///
@@ -64,13 +63,20 @@ pub struct RyzenAdjConfig {
 }
 
 impl RyzenAdjConfig {
-    pub fn to_args(&self) -> Result<Vec<String>, Box<dyn Error>> {
+    pub fn to_args(&self) -> Result<Vec<String>, serde_json::Error> {
         let value = serde_json::to_value(self)?;
         let mut args = Vec::<String>::new();
         if let Some(object) = value.as_object() {
             for (key, value) in object {
-                if !value.is_null() {
-                    args.push(format!("--{} {}", camel_to_kebab(key), value));
+                match value {
+                    serde_json::Value::Bool(true) => {
+                        args.push(format!("--{}", camel_to_kebab(key)));
+                    }
+                    serde_json::Value::Bool(false) | serde_json::Value::Null => {}
+                    _ => {
+                        args.push(format!("--{}", camel_to_kebab(key)));
+                        args.push(value.to_string());
+                    }
                 }
             }
         }
@@ -78,10 +84,29 @@ impl RyzenAdjConfig {
     }
 }
 
-
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Profile {
     pub name: String,
-    pub config: Option<RyzenAdjConfig>
+    pub config: Option<RyzenAdjConfig>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::RyzenAdjConfig;
+
+    #[test]
+    fn converts_profile_values_to_process_arguments() {
+        let config = RyzenAdjConfig {
+            stapm_limit: Some(6000),
+            power_saving: Some(true),
+            max_performance: Some(false),
+            ..Default::default()
+        };
+
+        assert_eq!(
+            config.to_args().unwrap(),
+            vec!["--power-saving", "--stapm-limit", "6000"]
+        );
+    }
 }
